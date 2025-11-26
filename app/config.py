@@ -1,5 +1,5 @@
 import json
-from typing import List, Optional
+from typing import List, Optional  # noqa: UP035
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 

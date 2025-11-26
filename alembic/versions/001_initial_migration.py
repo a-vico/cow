@@ -32,12 +32,6 @@ def upgrade() -> None:
             server_default=sa.text("now()"),
             nullable=False,
         ),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(op.f("ix_cows_name"), "cows", ["name"], unique=False)
@@ -53,12 +47,6 @@ def upgrade() -> None:
             server_default=sa.text("now()"),
             nullable=False,
         ),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
         sa.PrimaryKeyConstraint("id"),
     )
 
@@ -69,7 +57,11 @@ def upgrade() -> None:
         sa.Column("sensor_id", sa.String(length=36), nullable=False),
         sa.Column("cow_id", sa.String(length=36), nullable=False),
         sa.Column("timestamp", sa.Float(), nullable=False),
-        sa.Column("value", sa.Float(), nullable=False),
+        sa.Column("value", sa.Float(), nullable=True),
+        sa.Column(
+            "is_valid", sa.Boolean(), nullable=False, server_default=sa.text("true")
+        ),
+        sa.Column("validation_error", sa.String(length=255), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),

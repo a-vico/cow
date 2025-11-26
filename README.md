@@ -8,71 +8,6 @@ FastAPI application with PostgreSQL for managing items with full CRUD operations
 - [Docker](https://docs.docker.com/get-docker/) 20.10+
 - [Docker Compose](https://docs.docker.com/compose/install/) 2.0+
 
-### For Local Development
-- Python 3.11+
-- PostgreSQL 16+ (running locally or accessible)
-- pip (Python package manager)
-
-## Quick Start with Docker
-
-### 1. Clone and Setup
-```bash
-cd /home/albertovico/repos/cow
-cp .env.example .env
-```
-
-### 2. Build and Run
-```bash
-docker-compose up --build
-```
-
-The API will be available at:
-- **API**: http://localhost:8000
-- **API Docs**: http://localhost:8000/docs
-
-### 3. Stop the Application
-```bash
-docker-compose down
-```
-
-To remove volumes (including database data):
-```bash
-docker-compose down -v
-```
-
-## Local Development Setup
-
-### 1. Create Virtual Environment
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-### 2. Install Dependencies
-```bash
-pip install -e ".[dev]"
-```
-
-### 3. Setup PostgreSQL
-Make sure PostgreSQL is running locally and update `.env` file:
-```bash
-cp .env.example .env
-# Edit .env with your local database credentials
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/cow_db
-```
-
-### 4. Run Database Migrations
-```bash
-alembic upgrade head
-```
-
-### 5. Start the Application
-```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-The API will be available at http://localhost:8000
-
 ## Running Tests
 
 ### With Virtual Environment
@@ -231,17 +166,17 @@ alembic downgrade base
 alembic upgrade head
 ```
 
-## License
-
-This project is for educational purposes.
 
 ## Utils
 
-This repository includes small utility scripts under `utils/` for local data inspection.
+Small utility scripts live under `utils/`. Below are the primary helpers used during development and data loading.
 
-- `utils/read_sample_data.py`: Recursively scans a directory for Parquet files and prints a brief preview and summary for each file.
+### `read_sample_data.py` — quick Parquet inspection
 
-Usage (CLI):
+- Purpose: Find Parquet files and print a short preview and summary for each.
+- Location: `utils/read_sample_data.py`
+
+CLI usage:
 
 ```bash
 # Scan current directory recursively
@@ -251,16 +186,89 @@ python utils/read_sample_data.py
 python utils/read_sample_data.py data/input
 ```
 
-Programmatic API:
+Programmatic:
 
 ```python
 from utils.read_sample_data import read_parquet_files
-
-# returns a dict: {"relative/path/to/file": pandas.DataFrame}
 dfs = read_parquet_files("data/input")
 ```
 
-Notes:
+### `load_data.py` — bulk loader (parquet → API)
 
-- The CLI prints the relative path, row/column counts and a small head() preview for each found Parquet file.
-- The function `read_parquet_files` returns a mapping of relative file keys to DataFrames to be used in further processing.
+- Purpose: Read `cows.parquet`, `sensors.parquet`, and `measurements.parquet` and POST them to the running API.
+- Location: `utils/load_data.py`
+
+Important notes:
+- The script POSTs cows and sensors by explicit IDs, and posts measurements to the measurements collection endpoint.
+- Use `--dry-run` first to verify what will be sent (no network requests).
+
+CLI usage:
+
+```bash
+# Dry-run (prints payloads only)
+python utils/load_data.py --data-dir data/input --dry-run
+
+# Real run (performs HTTP POSTs)
+python utils/load_data.py --data-dir data/input
+```
+
+Options:
+- `--data-dir` (default: `data/input`) — directory with `cows.parquet`, `sensors.parquet`, `measurements.parquet`.
+- `--dry-run` — print HTTP payloads without sending requests.
+
+Example: do a dry-run, then load data for real:
+
+```bash
+python utils/load_data.py --data-dir data/input --dry-run
+python utils/load_data.py --data-dir data/input
+```
+
+### `clean_data.sh` — destructive DB wipe (SQL)
+
+- Purpose: Remove all rows from `measurements`, `sensors`, and `cows` in the development DB. This runs SQL directly against Postgres (faster and avoids API-level validation).
+- Location: `utils/clean_data.sh`
+
+WARNING: Destructive operation. Always run with `--dry-run` first and ensure you have backups if needed.
+
+CLI usage:
+
+```bash
+# Show SQL to be executed (safe)
+./utils/clean_data.sh --dry-run
+
+# Execute against the default local DB
+./utils/clean_data.sh
+
+# Execute against a custom DB URL
+./utils/clean_data.sh --db-url postgresql://user:pass@host:port/dbname
+```
+
+Options:
+- `--db-url` — Postgres connection string (default: `postgresql://postgres:postgres@localhost:5433/cow_db`).
+- `--dry-run` — print the SQL and exit.
+
+Behavior details:
+- If `psql` is installed locally the script pipes SQL into it.
+- If `psql` is missing the script will attempt to exec into the running `db` container (`docker exec` / `docker-compose exec`) and run `psql` there.
+
+Suggested workflow for reloading data:
+
+1. Stop API hot-reload or avoid editing watched files while loading.
+2. Confirm DB state and run a dry-run:
+
+```bash
+./utils/clean_data.sh --dry-run
+```
+
+3. If satisfied, run the destructive step (or run against a throwaway DB):
+
+```bash
+./utils/clean_data.sh
+```
+
+4. Load the parquet data (dry-run first if desired):
+
+```bash
+python utils/load_data.py --data-dir data/input --dry-run
+python utils/load_data.py --data-dir data/input
+```

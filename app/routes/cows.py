@@ -59,7 +59,60 @@ async def get_cow(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Cow with id {cow_id} not found",
         )
+    latest = get_latest_measurements(db, cow_id)
+    setattr(cow, "latest_measurements", latest)
     return cow
+
+
+def get_latest_measurements(db: Session, cow_id: str):
+    """Return latest measurement per sensor unit for given cow_id.
+
+    Uses DISTINCT ON when connected to PostgreSQL for a single-query optimized path,
+    otherwise falls back to querying per unit.
+    """
+    latest = []
+    try:
+        bind = db.get_bind()
+        dialect_name = getattr(bind.dialect, "name", None)
+    except Exception:
+        dialect_name = None
+
+    if dialect_name and dialect_name.startswith("postgres"):
+        rows = (
+            db.query(models.Measurement, models.Sensor.unit)
+            .join(models.Sensor, models.Measurement.sensor_id == models.Sensor.id)
+            .filter(models.Measurement.cow_id == cow_id)
+            .distinct(models.Sensor.unit)
+            .order_by(models.Sensor.unit, models.Measurement.timestamp.desc())
+            .all()
+        )
+        for m, unit in rows:
+            setattr(m, "unit", unit)
+            latest.append(m)
+        return latest
+
+    # fallback: collect units then pick latest per unit
+    unit_rows = (
+        db.query(models.Sensor.unit)
+        .join(models.Measurement, models.Measurement.sensor_id == models.Sensor.id)
+        .filter(models.Measurement.cow_id == cow_id)
+        .distinct()
+        .all()
+    )
+
+    for (unit,) in unit_rows:
+        m = (
+            db.query(models.Measurement)
+            .join(models.Sensor, models.Measurement.sensor_id == models.Sensor.id)
+            .filter(models.Measurement.cow_id == cow_id, models.Sensor.unit == unit)
+            .order_by(models.Measurement.timestamp.desc())
+            .first()
+        )
+        if m:
+            setattr(m, "unit", unit)
+            latest.append(m)
+
+    return latest
 
 
 @router.delete("/{cow_id}", status_code=status.HTTP_204_NO_CONTENT)

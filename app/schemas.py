@@ -22,6 +22,7 @@ class CowResponse(CowBase):
 
     id: str
     created_at: datetime
+    latest_measurements: list["MeasurementResponse"] = []
 
 
 class CowListResponse(BaseModel):
@@ -83,6 +84,7 @@ class MeasurementResponse(MeasurementBase):
     created_at: datetime
     is_valid: bool
     validation_error: str | None = None
+    unit: str | None = None
 
 
 class MeasurementListResponse(BaseModel):

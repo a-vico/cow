@@ -2,6 +2,9 @@ from datetime import date
 
 from fastapi import status
 
+from app import models
+from app.routes.cows import get_latest_measurements
+
 
 class TestCowsCreate:
     """Test cases for creating cows"""
@@ -79,6 +82,102 @@ class TestCowsGet:
         """Test getting a non-existent cow"""
         response = client.get("/api/v1/cows/non-existent-id")
         assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_get_cow_latest_measurements(self, client):
+        """Test that get_cow returns the latest measurement per unit"""
+        cow_id = "c821a6b7-8dd0-4b4e-9835-1c0c57264ba4"
+        cow_data = {"name": "Bessie", "birthdate": "2020-01-09"}
+        client.post(f"/api/v1/cows/{cow_id}", json=cow_data)
+
+        # create two sensors with different units
+        sensor_a = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+        sensor_b = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+        client.post(f"/api/v1/sensors/{sensor_a}", json={"unit": "L"})
+        client.post(f"/api/v1/sensors/{sensor_b}", json={"unit": "kg"})
+
+        # For unit L: create two measurements, later one should be returned
+        client.post(
+            "/api/v1/measurements/",
+            json={
+                "sensor_id": sensor_a,
+                "cow_id": cow_id,
+                "timestamp": 1609459200.0,
+                "value": 10.0,
+            },
+        )
+        client.post(
+            "/api/v1/measurements/",
+            json={
+                "sensor_id": sensor_a,
+                "cow_id": cow_id,
+                "timestamp": 1609459300.0,
+                "value": 12.0,
+            },
+        )
+
+        # For unit kg: create one measurement
+        client.post(
+            "/api/v1/measurements/",
+            json={
+                "sensor_id": sensor_b,
+                "cow_id": cow_id,
+                "timestamp": 1609459250.0,
+                "value": 200.0,
+            },
+        )
+
+        response = client.get(f"/api/v1/cows/{cow_id}")
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert "latest_measurements" in data
+        lm = data["latest_measurements"]
+        # Should have the latest for L and the one for kg => 2 items
+        assert isinstance(lm, list)
+        assert len(lm) == 2
+        # verify values: L -> 12.0, kg -> 200.0 (order not guaranteed)
+        values = sorted([m["value"] for m in lm])
+        assert values == [12.0, 200.0]
+        # verify units present
+        units = sorted([m["unit"] for m in lm])
+        assert units == ["L", "kg"]
+
+
+def test_get_latest_measurements_direct(db_session):
+    # create cow
+    cow = models.Cow(
+        id="c821a6b7-8dd0-4b4e-9835-1c0c57264ba4",
+        name="Bessie",
+        birthdate=date(2020, 1, 9),
+    )
+    db_session.add(cow)
+
+    # create sensors
+    sensor_a = models.Sensor(id="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", unit="L")
+    sensor_b = models.Sensor(id="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", unit="kg")
+    db_session.add_all([sensor_a, sensor_b])
+    db_session.commit()
+
+    # add measurements for sensor_a (two timestamps) and sensor_b
+    m1 = models.Measurement(
+        sensor_id=sensor_a.id, cow_id=cow.id, timestamp=1609459200.0, value=10.0
+    )
+    m2 = models.Measurement(
+        sensor_id=sensor_a.id, cow_id=cow.id, timestamp=1609459300.0, value=12.0
+    )
+    m3 = models.Measurement(
+        sensor_id=sensor_b.id, cow_id=cow.id, timestamp=1609459250.0, value=200.0
+    )
+    db_session.add_all([m1, m2, m3])
+    db_session.commit()
+
+    latest = get_latest_measurements(db_session, cow.id)
+
+    assert isinstance(latest, list)
+    assert len(latest) == 2
+    values = sorted([m.value for m in latest])
+    assert values == [12.0, 200.0]
+    units = sorted([getattr(m, "unit") for m in latest])
+    assert units == ["L", "kg"]
 
 
 class TestCowsDelete:
