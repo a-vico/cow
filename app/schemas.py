@@ -22,7 +22,6 @@ class CowResponse(CowBase):
 
     id: str
     created_at: datetime
-    updated_at: datetime
 
 
 class CowListResponse(BaseModel):
@@ -43,7 +42,6 @@ class SensorCreate(SensorBase):
     """Schema for creating a sensor"""
 
 
-
 class SensorResponse(SensorBase):
     """Schema for sensor response"""
 
@@ -51,7 +49,6 @@ class SensorResponse(SensorBase):
 
     id: str
     created_at: datetime
-    updated_at: datetime
 
 
 class SensorListResponse(BaseModel):
@@ -68,7 +65,7 @@ class MeasurementBase(BaseModel):
     sensor_id: str = Field(..., min_length=36, max_length=36)
     cow_id: str = Field(..., min_length=36, max_length=36)
     timestamp: float = Field(..., gt=0)
-    value: float
+    value: float | None = None
 
 
 class MeasurementCreate(MeasurementBase):
@@ -84,6 +81,8 @@ class MeasurementResponse(MeasurementBase):
 
     id: int
     created_at: datetime
+    is_valid: bool
+    validation_error: str | None = None
 
 
 class MeasurementListResponse(BaseModel):

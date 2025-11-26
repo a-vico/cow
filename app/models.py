@@ -19,12 +19,6 @@ class Cow(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
-    )
 
     # Relationship
     measurements: Mapped[list["Measurement"]] = relationship(
@@ -44,12 +38,6 @@ class Sensor(Base):
     unit: Mapped[str] = mapped_column(String(10), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
     )
 
     # Relationship
@@ -74,7 +62,12 @@ class Measurement(Base):
         String(36), ForeignKey("cows.id"), nullable=False, index=True
     )
     timestamp: Mapped[float] = mapped_column(Float, nullable=False, index=True)
-    value: Mapped[float] = mapped_column(Float, nullable=False)
+    value: Mapped[float] = mapped_column(Float, nullable=True)
+    is_valid: Mapped[bool] = mapped_column(
+        nullable=False,
+        server_default="true",
+    )
+    validation_error: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

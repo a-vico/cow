@@ -17,7 +17,6 @@ class TestCowsCreate:
         assert data["name"] == cow_data["name"]
         assert data["birthdate"] == cow_data["birthdate"]
         assert "created_at" in data
-        assert "updated_at" in data
 
     def test_create_cow_duplicate_id(self, client):
         """Test creating a cow with duplicate ID"""

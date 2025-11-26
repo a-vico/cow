@@ -62,6 +62,74 @@ class TestMeasurementsCreate:
         response = client.post("/api/v1/measurements/", json=measurement_data)
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
+    def test_create_measurement_null_value(self, client):
+        """Test creating a measurement with null value"""
+        cow_id = "c821a6b7-8dd0-4b4e-9835-1c0c57264ba4"
+        client.post(
+            f"/api/v1/cows/{cow_id}", json={"name": "Bessie", "birthdate": "2020-01-09"}
+        )
+        sensor_id = "b3fd06f1-ce63-4897-97de-675badbf4076"
+        client.post(f"/api/v1/sensors/{sensor_id}", json={"unit": "L"})
+
+        measurement = {
+            "sensor_id": sensor_id,
+            "cow_id": cow_id,
+            "timestamp": 1609459200.0,
+            "value": None,
+        }
+
+        response = client.post("/api/v1/measurements/", json=measurement)
+        assert response.status_code == status.HTTP_201_CREATED
+        data = response.json()
+        assert data["is_valid"] is False
+        assert data["validation_error"] == "value is null"
+
+    def test_create_measurement_minus_one_error(self, client):
+        """Test creating a measurement with negative value"""
+        cow_id = "c821a6b7-8dd0-4b4e-9835-1c0c57264ba4"
+        sensor_id = "b3fd06f1-ce63-4897-97de-675badbf4076"
+
+        client.post(
+            f"/api/v1/cows/{cow_id}", json={"name": "Bessie", "birthdate": "2020-01-09"}
+        )
+        client.post(f"/api/v1/sensors/{sensor_id}", json={"unit": "L"})
+
+        measurement = {
+            "sensor_id": sensor_id,
+            "cow_id": cow_id,
+            "timestamp": 1609459200.0,
+            "value": -1,
+        }
+
+        response = client.post("/api/v1/measurements/", json=measurement)
+        assert response.status_code == status.HTTP_201_CREATED
+        data = response.json()
+        assert data["is_valid"] is False
+        assert data["validation_error"] == "value is -1.0"
+
+    def test_create_measurement_zero_error(self, client):
+        """Test creating a measurement with zero value"""
+        cow_id = "c821a6b7-8dd0-4b4e-9835-1c0c57264ba4"
+        sensor_id = "b3fd06f1-ce63-4897-97de-675badbf4076"
+
+        client.post(
+            f"/api/v1/cows/{cow_id}", json={"name": "Bessie", "birthdate": "2020-01-09"}
+        )
+        client.post(f"/api/v1/sensors/{sensor_id}", json={"unit": "L"})
+
+        measurement = {
+            "sensor_id": sensor_id,
+            "cow_id": cow_id,
+            "timestamp": 1609459200.0,
+            "value": 0,
+        }
+
+        response = client.post("/api/v1/measurements/", json=measurement)
+        assert response.status_code == status.HTTP_201_CREATED
+        data = response.json()
+        assert data["is_valid"] is False
+        assert data["validation_error"] == "value is 0.0"
+
 
 class TestMeasurementsList:
     """Test cases for listing measurements"""

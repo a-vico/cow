@@ -37,7 +37,28 @@ async def create_measurement(
             detail=f"Cow with id {measurement.cow_id} not found",
         )
 
-    db_measurement = models.Measurement(**measurement.model_dump())
+    # Prepare DB measurement dict
+    mdata = measurement.model_dump()
+
+    # Validate value based on sensor unit
+    unit = sensor.unit
+    validation_error = None
+    is_valid = True
+
+    value = mdata.get("value")
+    if value is None:
+        validation_error = "value is null"
+        is_valid = False
+    else:
+        if unit in ("L", "kg"):
+            if value <= 0:
+                validation_error = f"value is {value}"
+                is_valid = False
+
+    mdata["is_valid"] = is_valid
+    mdata["validation_error"] = validation_error
+
+    db_measurement = models.Measurement(**mdata)
     db.add(db_measurement)
     db.commit()
     db.refresh(db_measurement)
