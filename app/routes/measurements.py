@@ -158,34 +158,3 @@ async def get_measurement(
             detail=f"Measurement with id {measurement_id} not found",
         )
     return measurement
-
-
-@router.delete("/{measurement_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_measurement(
-    measurement_id: int,
-    db: Session | AsyncSession = Depends(get_db),
-):
-    """Delete a measurement"""
-    if isinstance(db, AsyncSession):
-        res = await db.execute(
-            select(models.Measurement).filter(models.Measurement.id == measurement_id)
-        )
-        db_measurement = res.scalars().first()
-    else:
-        db_measurement = (
-            db.query(models.Measurement)
-            .filter(models.Measurement.id == measurement_id)
-            .first()
-        )
-    if not db_measurement:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Measurement with id {measurement_id} not found",
-        )
-
-    db.delete(db_measurement)
-    if isinstance(db, AsyncSession):
-        await db.commit()
-    else:
-        db.commit()
-    return None

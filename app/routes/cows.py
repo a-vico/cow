@@ -48,7 +48,7 @@ async def create_cow(
 @router.get("/", response_model=schemas.CowListResponse)
 async def list_cows(
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 20,
     db: Session | AsyncSession = Depends(get_db),
 ):
     """List all cows with pagination"""
@@ -57,9 +57,17 @@ async def list_cows(
         cows = res.scalars().all()
         total_res = await db.execute(select(func.count()).select_from(models.Cow))
         total = total_res.scalar_one()
+        # attach latest measurements for each cow (async)
+        for cow in cows:
+            latest = await get_latest_measurements_async(db, cow.id)
+            setattr(cow, "latest_measurements", latest)
     else:
         cows = db.query(models.Cow).offset(skip).limit(limit).all()
         total = db.query(models.Cow).count()
+        # attach latest measurements for each cow (sync)
+        for cow in cows:
+            latest = get_latest_measurements_sync(db, cow.id)
+            setattr(cow, "latest_measurements", latest)
     return {"cows": cows, "total": total}
 
 
@@ -189,21 +197,3 @@ async def get_latest_measurements_async(db: AsyncSession, cow_id: str):
             latest.append(m)
 
     return latest
-
-
-@router.delete("/{cow_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_cow(
-    cow_id: str,
-    db: Session = Depends(get_db),
-):
-    """Delete a cow"""
-    db_cow = db.query(models.Cow).filter(models.Cow.id == cow_id).first()
-    if not db_cow:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Cow with id {cow_id} not found",
-        )
-
-    db.delete(db_cow)
-    db.commit()
-    return None

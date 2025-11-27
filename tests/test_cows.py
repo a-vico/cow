@@ -3,7 +3,7 @@ from datetime import date
 from fastapi import status
 
 from app import models
-from app.routes.cows import get_latest_measurements
+from app.routes.cows import get_latest_measurements_sync
 
 
 class TestCowsCreate:
@@ -170,7 +170,7 @@ def test_get_latest_measurements_direct(db_session):
     db_session.add_all([m1, m2, m3])
     db_session.commit()
 
-    latest = get_latest_measurements(db_session, cow.id)
+    latest = get_latest_measurements_sync(db_session, cow.id)
 
     assert isinstance(latest, list)
     assert len(latest) == 2
@@ -178,20 +178,3 @@ def test_get_latest_measurements_direct(db_session):
     assert values == [12.0, 200.0]
     units = sorted([getattr(m, "unit") for m in latest])
     assert units == ["L", "kg"]
-
-
-class TestCowsDelete:
-    """Test cases for deleting cows"""
-
-    def test_delete_cow(self, client):
-        """Test deleting an existing cow"""
-        cow_id = "c821a6b7-8dd0-4b4e-9835-1c0c57264ba4"
-        cow_data = {"name": "Bessie", "birthdate": "2020-01-09"}
-        client.post(f"/api/v1/cows/{cow_id}", json=cow_data)
-
-        response = client.delete(f"/api/v1/cows/{cow_id}")
-        assert response.status_code == status.HTTP_204_NO_CONTENT
-
-        # Verify cow is deleted
-        get_response = client.get(f"/api/v1/cows/{cow_id}")
-        assert get_response.status_code == status.HTTP_404_NOT_FOUND

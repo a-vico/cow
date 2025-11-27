@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
@@ -86,29 +86,3 @@ async def get_sensor(
             detail=f"Sensor with id {sensor_id} not found",
         )
     return sensor
-
-
-@router.delete("/{sensor_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_sensor(
-    sensor_id: str,
-    db: Session | AsyncSession = Depends(get_db),
-):
-    """Delete a sensor"""
-    if isinstance(db, AsyncSession):
-        res = await db.execute(
-            select(models.Sensor).filter(models.Sensor.id == sensor_id)
-        )
-        db_sensor = res.scalars().first()
-    else:
-        db_sensor = (
-            db.query(models.Sensor).filter(models.Sensor.id == sensor_id).first()
-        )
-    if not db_sensor:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Sensor with id {sensor_id} not found",
-        )
-
-    db.delete(db_sensor)
-    db.commit()
-    return None

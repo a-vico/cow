@@ -110,10 +110,7 @@ cow/
 │   └── env.py              # Alembic configuration
 ├── tests/
 │   ├── conftest.py         # Test fixtures
-│   ├── test_main.py        # Main app tests
-│   ├── test_items.py       # Item API tests
-│   ├── test_models.py      # Database model tests
-│   └── test_schemas.py     # Pydantic schema tests
+│   ├── test_*.py*          # Unit tests
 ├── docker-compose.yml      # Docker Compose configuration
 ├── Dockerfile              # Application container
 ├── pyproject.toml          # Python dependencies
@@ -126,19 +123,16 @@ cow/
 - `POST /api/v1/cows/` - Create a new cow
 - `GET /api/v1/cows/` - List all cows
 - `GET /api/v1/cows/{cow_id}` - Get a specific cow
-- `DELETE /api/v1/cows/{cow_id}` - Delete a cow
 
 ### Measurements
 - `POST /api/v1/measurements/` - Create a new measurement
 - `GET /api/v1/measurements/` - List all measurements
 - `GET /api/v1/measurements/{measurement_id}` - Get a specific measurement
-- `DELETE /api/v1/measurements/{measurement_id}` - Delete a measurement
 
 ### Sensors
 - `POST /api/v1/sensors/` - Create a new sensor
 - `GET /api/v1/sensors/` - List all sensors
 - `GET /api/v1/sensors/{sensor_id}` - Get a specific sensor
-- `DELETE /api/v1/sensors/{sensor_id}` - Delete a sensor
 
 ### Reports
 - `GET /api/v1/reports/weights` - Get cow weights report
@@ -229,21 +223,16 @@ ruff check app/ tests/
 pip install -e ".[dev]"
 ```
 
-## Technology Stack
-
-- **FastAPI** 0.115+ - Modern web framework
-- **Python** 3.11+ - Programming language
-- **PostgreSQL** 16+ - Database
-- **SQLAlchemy** 2.0+ - ORM
-- **Alembic** 1.14+ - Database migrations
-- **Pydantic** 2.10+ - Data validation
-- **Uvicorn** 0.32+ - ASGI server
-- **Docker** & **Docker Compose** - Containerization
-- **Pytest** 8.3+ - Testing framework
-
 ## Utils
 
 Small utility scripts live under `utils/`. Below are the primary helpers used during development and data loading.
+
+The execution of these scripts require local development setup:
+```bash
+python -m venv venv
+source venv/bin/activate 
+pip install -e ".[dev]"
+```
 
 ### `read_sample_data.py` — quick Parquet inspection
 
@@ -307,4 +296,9 @@ Options:
 Behavior details:
 - If `psql` is installed locally the script pipes SQL into it.
 - If `psql` is missing the script will attempt to exec into the running `db` container (`docker exec` / `docker-compose exec`) and run `psql` there.
+
+### `explore_data.ipynb` — pandas based exploration
+
+- Purpose: Free exploration of `measurements`, `sensors`, and `cows` parquet datasets with the goal of improving understanding of the data model.
+- Location: `utils/explore_data.sh`
 
