@@ -8,6 +8,71 @@ FastAPI application with PostgreSQL for managing items with full CRUD operations
 - [Docker](https://docs.docker.com/get-docker/) 20.10+
 - [Docker Compose](https://docs.docker.com/compose/install/) 2.0+
 
+### For Local Development
+- Python 3.11+
+- PostgreSQL 16+ (running locally or accessible)
+- pip (Python package manager)
+
+## Quick Start with Docker
+
+### 1. Clone and Setup
+```bash
+cd /home/albertovico/repos/cow
+cp .env.example .env
+```
+
+### 2. Build and Run
+```bash
+docker compose --env-file .env up -d
+```
+
+The API will be available at:
+- **API**: http://localhost:8000
+- **API Docs**: http://localhost:8000/docs
+
+### 3. Stop the Application
+```bash
+docker-compose down
+```
+
+To remove volumes (including database data):
+```bash
+docker-compose down -v
+```
+
+## Local Development Setup
+
+### 1. Create Virtual Environment
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+### 2. Install Dependencies
+```bash
+pip install -e ".[dev]"
+```
+
+### 3. Setup PostgreSQL
+Make sure PostgreSQL is running locally and update `.env` file:
+```bash
+cp .env.example .env
+# Edit .env with your local database credentials
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/cow_db
+```
+
+### 4. Run Database Migrations
+```bash
+alembic upgrade head
+```
+
+### 5. Start the Application
+```bash
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+The API will be available at http://localhost:8000
+
 ## Running Tests
 
 ### With Virtual Environment
@@ -165,7 +230,6 @@ pip install -e ".[dev]"
 alembic downgrade base
 alembic upgrade head
 ```
-
 
 ## Utils
 

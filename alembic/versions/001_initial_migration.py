@@ -56,7 +56,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("sensor_id", sa.String(length=36), nullable=False),
         sa.Column("cow_id", sa.String(length=36), nullable=False),
-        sa.Column("timestamp", sa.Float(), nullable=False),
+        sa.Column("timestamp", sa.DateTime(timezone=True), nullable=False),
         sa.Column("value", sa.Float(), nullable=True),
         sa.Column(
             "is_valid", sa.Boolean(), nullable=False, server_default=sa.text("true")

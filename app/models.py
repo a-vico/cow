@@ -4,6 +4,8 @@ from typing import Optional
 from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
+from sqlalchemy.orm import validates
+from datetime import datetime, timezone
 
 from app.database import Base
 
@@ -61,7 +63,7 @@ class Measurement(Base):
     cow_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("cows.id"), nullable=False, index=True
     )
-    timestamp: Mapped[float] = mapped_column(Float, nullable=False, index=True)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     value: Mapped[float] = mapped_column(Float, nullable=True)
     is_valid: Mapped[bool] = mapped_column(
         nullable=False,
@@ -78,3 +80,16 @@ class Measurement(Base):
 
     def __repr__(self) -> str:
         return f"<Measurement(id={self.id}, sensor_id={self.sensor_id}, cow_id={self.cow_id})>"
+
+    @validates("timestamp")
+    def _validate_timestamp(self, key, value):
+        if isinstance(value, (int, float, str)):
+            try:
+                return datetime.fromtimestamp(float(value), tz=timezone.utc)
+            except Exception:
+                raise ValueError("Invalid timestamp value")
+        if isinstance(value, datetime):
+            if value.tzinfo is None:
+                return value.replace(tzinfo=timezone.utc)
+            return value
+        raise ValueError("Invalid timestamp type")

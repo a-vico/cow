@@ -25,7 +25,7 @@ class TestMeasurementsCreate:
         data = response.json()
         assert data["sensor_id"] == measurement_data["sensor_id"]
         assert data["cow_id"] == measurement_data["cow_id"]
-        assert data["timestamp"] == measurement_data["timestamp"]
+        assert data["timestamp"] == "2020-07-11T10:06:40Z"
         assert data["value"] == measurement_data["value"]
         assert "id" in data
         assert "created_at" in data

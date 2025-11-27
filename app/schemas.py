@@ -1,6 +1,6 @@
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
 # Cow Schemas
@@ -85,6 +85,19 @@ class MeasurementResponse(MeasurementBase):
     is_valid: bool
     validation_error: str | None = None
     unit: str | None = None
+    timestamp: datetime
+
+    @field_serializer("timestamp")
+    def _serialize_timestamp(self, v):
+        if isinstance(v, datetime):
+            if v.tzinfo is None:
+                v = v.replace(tzinfo=timezone.utc)
+            # return ISO8601 string in UTC with 'Z' suffix
+            s = v.astimezone(timezone.utc).isoformat()
+            if s.endswith("+00:00"):
+                s = s.replace("+00:00", "Z")
+            return s
+        return v
 
 
 class MeasurementListResponse(BaseModel):

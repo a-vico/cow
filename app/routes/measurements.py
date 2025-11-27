@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -39,6 +41,15 @@ async def create_measurement(
 
     # Prepare DB measurement dict
     mdata = measurement.model_dump()
+
+    # Convert epoch float timestamp (seconds) to timezone-aware datetime (UTC)
+    ts = mdata.get("timestamp")
+    try:
+        mdata["timestamp"] = datetime.fromtimestamp(float(ts), tz=timezone.utc)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid timestamp"
+        )
 
     # Validate value based on sensor unit
     unit = sensor.unit

@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routes import cows, measurements, sensors
+from app.routes import cows, measurements, reports, sensors
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -25,6 +25,7 @@ app.include_router(sensors.router, prefix="/api/v1/sensors", tags=["sensors"])
 app.include_router(
     measurements.router, prefix="/api/v1/measurements", tags=["measurements"]
 )
+app.include_router(reports.router, prefix="/api/v1/reports", tags=["reports"])
 
 
 @app.get("/")
