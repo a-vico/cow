@@ -129,20 +129,38 @@ cow/
 - `POST /api/v1/cows/` - Create a new cow
 - `GET /api/v1/cows/` - List all cows
 - `GET /api/v1/cows/{cow_id}` - Get a specific cow
-
-### Measurements
-- `POST /api/v1/measurements/` - Create a new measurement
-- `GET /api/v1/measurements/` - List all measurements
-- `GET /api/v1/measurements/{measurement_id}` - Get a specific measurement
+```
+# get cow
+http://localhost:8000/api/v1/cows/fa5625d5-d657-40a7-9de9-a52af87aef1f
+```
 
 ### Sensors
 - `POST /api/v1/sensors/` - Create a new sensor
 - `GET /api/v1/sensors/` - List all sensors
 - `GET /api/v1/sensors/{sensor_id}` - Get a specific sensor
+```
+# get sensor
+http://localhost:8000/api/v1/sensors/3459d3dd-b662-40eb-931e-931701cbeef7
+```
+
+### Measurements
+- `POST /api/v1/measurements/` - Create a new measurement
+- `GET /api/v1/measurements/` - List all measurements
+- `GET /api/v1/measurements/{measurement_id}` - Get a specific measurement
+```
+# list measurements by {sensor_id} and {cow_id}
+http://localhost:8000/api/v1/measurements/?skip=0&limit=100&cow_id=fa5625d5-d657-40a7-9de9-a52af87aef1f&sensor_id=3459d3dd-b662-40eb-931e-931701cbeef7
+```
 
 ### Reports
 - `GET /api/v1/reports/weights` - Get cow weights report
+```
+http://localhost:8000/api/v1/reports/weights?date=2024-06-30
+```
 - `GET /api/v1/reports/milk` - Get milk production report
+```
+http://localhost:8000/api/v1/reports/milk?start_date=2024-06-01&end_date=2024-06-30
+```
 
 ## API Documentation
 
@@ -312,3 +330,24 @@ Behavior details:
 
 - Purpose: Free exploration of `milk` and `weights` CSV files. Noted some observations and conclusions about the data, including my guess about how to know if a cow is potentially ill.
 - Location: `utils/explore_reports.ipynb`
+
+# Scalability
+
+## API
+- To enable capacity for processing high amount of parallel calls efficiently, the API should be moved to a scalable cloud **microservices** paradigm (Kubernetes, Lambdas).
+- Instead of having a single monolitic computing layer acting as a bottleneck, we would have different endpoints in different machines with their own capability to **scale independently**.
+
+## Data Loading
+- High volume of measurements being pushed in parallel from the API would crash and lock the database.
+- Instead of the API writing directly to the database, it should act as producer to send messages to a **Kafka topic** (or equivalent service like AWS Kinesis, Azure Eventhubs, etc).
+
+## Storage
+- If the ingestion throughput is **very heavy**, it's best to move to a **NoSQL** cloud database, at least for measurements data, like DynamoDB, CosmosDB, Cassandra.
+- If the throughput is **not that heavy**, we could consider using TimescaleDB, which is a Postgres extension optimized for time-series.
+- If we keep Postgres, we should move to a cloud host like AWS RDS for improved scalability, and also implement **Read Replicas**.
+
+## Analytics
+- If we setup a **Kafka** topic, we should add a subscription to move the data to a Data Lake as avro/parquet files, where they would get processed and modelled through the Data Lake layers.
+- For cows and sensors data, the API should be used by the Data Lake ingestion processes to import to the landing layer on **daily batches**.
+- If we need a **hot path** to analyse measurements in Real Time, we could consume the topic from a service like Spark Streaming on Databricks, or AWS Firehose.
+
