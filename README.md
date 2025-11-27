@@ -1,6 +1,21 @@
 # Cow API
 
-FastAPI application with PostgreSQL for managing items with full CRUD operations.
+FastAPI application with PostgreSQL for Cow Monitoring.
+
+## Table of Contents
+
+- [Requirements](#requirements)
+- [Quick Start with Docker](#quick-start-with-docker)
+- [Local Development Setup](#local-development-setup)
+- [Running Tests](#running-tests)
+- [Project Structure](#project-structure)
+- [API Endpoints](#api-endpoints)
+- [API Documentation](#api-documentation)
+- [Environment Variables](#environment-variables)
+- [Database Migrations](#database-migrations)
+- [Recreate Database (Destroy & Recreate)](#recreate-database-destroy--recreate)
+- [Utils](#utils)
+- [Scalability](#scalability)
 
 ## Requirements
 
@@ -226,25 +241,6 @@ alembic upgrade head
 
 ```bash
 python utils/load_data.py --data-dir data/input
-```
-
-
-## Development
-
-### Code Formatting and Linting
-```bash
-# Format code
-ruff format app/ tests/
-
-# Lint code
-ruff check app/ tests/
-```
-
-### Adding New Dependencies
-```bash
-# Edit pyproject.toml to add the dependency
-# Then reinstall
-pip install -e ".[dev]"
 ```
 
 ## Utils
