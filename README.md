@@ -95,26 +95,32 @@ pytest tests/ --cov=app --cov-report=term-missing
 
 ```
 cow/
-├── app/
+├── app/                    # application package (FastAPI)
 │   ├── __init__.py
-│   ├── main.py              # FastAPI application entry point
-│   ├── config.py            # Application settings
-│   ├── database.py          # Database connection and session
-│   ├── models.py            # SQLAlchemy models
-│   ├── schemas.py           # Pydantic schemas
-│   └── routes/
-│       ├── __init__.py
-│       └── items.py         # Item CRUD endpoints
-├── alembic/
-│   ├── versions/            # Database migration files
-│   └── env.py              # Alembic configuration
-├── tests/
-│   ├── conftest.py         # Test fixtures
-│   ├── test_*.py*          # Unit tests
+│   ├── main.py             # FastAPI app entrypoint
+│   ├── config.py           # application settings
+│   ├── database.py         # DB connection/session helpers
+│   ├── models.py           # SQLAlchemy models
+│   ├── schemas.py          # Pydantic schemas
+│   └── routes/             # API route modules
+├── alembic/                # migration config and versions
+│   ├── env.py
+│   └── versions/
+├── data/                   # sample inputs and generated reports
+│   ├── input/
+│   └── reports/
+├── tests/                  # unit tests
+├── utils/                  # helper scripts and notebooks
+│   ├── clean_data.sh
+│   ├── load_data.py
+│   ├── read_sample_data.py
+│   ├── explore_data.ipynb
+│   └── explore_reports.ipynb
 ├── docker-compose.yml      # Docker Compose configuration
 ├── Dockerfile              # Application container
-├── pyproject.toml          # Python dependencies
-└── alembic.ini            # Alembic configuration
+├── pyproject.toml          # Python dependencies and dev extras
+├── alembic.ini             # Alembic CLI config
+└── README.md
 ```
 
 ## API Endpoints
@@ -297,8 +303,12 @@ Behavior details:
 - If `psql` is installed locally the script pipes SQL into it.
 - If `psql` is missing the script will attempt to exec into the running `db` container (`docker exec` / `docker-compose exec`) and run `psql` there.
 
-### `explore_data.ipynb` — pandas based exploration
+### `explore_data.ipynb` — pandas based source data exploration
 
 - Purpose: Free exploration of `measurements`, `sensors`, and `cows` parquet datasets with the goal of improving understanding of the data model.
-- Location: `utils/explore_data.sh`
+- Location: `utils/explore_data.ipynb`
 
+### `explore_data.ipynb` — pandas based reports exploration
+
+- Purpose: Free exploration of `milk` and `weights` CSV files. Noted some observations and conclusions about the data, including my guess about how to know if a cow is potentially ill.
+- Location: `utils/explore_reports.ipynb`
