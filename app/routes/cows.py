@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
@@ -79,17 +79,16 @@ async def get_cow(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Cow with id {cow_id} not found",
         )
-    # latest measurements helper supports sync sessions; for async sessions
-    # we fallback to an empty list (or you can adapt the helper to async)
+
     if isinstance(db, AsyncSession):
-        latest = []
+        latest = await get_latest_measurements_async(db, cow_id)
     else:
-        latest = get_latest_measurements(db, cow_id)
+        latest = get_latest_measurements_sync(db, cow_id)
     setattr(cow, "latest_measurements", latest)
     return cow
 
 
-def get_latest_measurements(db: Session, cow_id: str):
+def get_latest_measurements_sync(db: Session, cow_id: str):
     """Return latest measurement per sensor unit for given cow_id.
 
     Uses DISTINCT ON when connected to PostgreSQL for a single-query optimized path,
@@ -133,6 +132,58 @@ def get_latest_measurements(db: Session, cow_id: str):
             .order_by(models.Measurement.timestamp.desc())
             .first()
         )
+        if m:
+            setattr(m, "unit", unit)
+            latest.append(m)
+
+    return latest
+
+
+async def get_latest_measurements_async(db: AsyncSession, cow_id: str):
+    """Async version: Return latest measurement per sensor unit for given cow_id.
+
+    Uses DISTINCT ON when connected to PostgreSQL for a single-query optimized path,
+    otherwise falls back to querying per unit.
+    """
+    latest = []
+    try:
+        bind = db.get_bind()
+        dialect_name = getattr(bind.dialect, "name", None)
+    except Exception:
+        dialect_name = None
+
+    if dialect_name and dialect_name.startswith("postgres"):
+        res = await db.execute(
+            select(models.Measurement, models.Sensor.unit)
+            .join(models.Sensor, models.Measurement.sensor_id == models.Sensor.id)
+            .filter(models.Measurement.cow_id == cow_id)
+            .distinct(models.Sensor.unit)
+            .order_by(models.Sensor.unit, models.Measurement.timestamp.desc())
+        )
+        rows = res.all()
+        for m, unit in rows:
+            setattr(m, "unit", unit)
+            latest.append(m)
+        return latest
+
+    # fallback: collect units then pick latest per unit
+    unit_res = await db.execute(
+        select(models.Sensor.unit)
+        .join(models.Measurement, models.Measurement.sensor_id == models.Sensor.id)
+        .filter(models.Measurement.cow_id == cow_id)
+        .distinct()
+    )
+    unit_rows = unit_res.scalars().all()
+
+    for unit in unit_rows:
+        m_res = await db.execute(
+            select(models.Measurement)
+            .join(models.Sensor, models.Measurement.sensor_id == models.Sensor.id)
+            .filter(models.Measurement.cow_id == cow_id, models.Sensor.unit == unit)
+            .order_by(models.Measurement.timestamp.desc())
+            .limit(1)
+        )
+        m = m_res.scalars().first()
         if m:
             setattr(m, "unit", unit)
             latest.append(m)

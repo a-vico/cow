@@ -63,7 +63,9 @@ class Measurement(Base):
     cow_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("cows.id"), nullable=False, index=True
     )
-    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
     value: Mapped[float] = mapped_column(Float, nullable=True)
     is_valid: Mapped[bool] = mapped_column(
         nullable=False,

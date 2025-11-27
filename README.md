@@ -40,12 +40,17 @@ To remove volumes (including database data):
 docker-compose down -v
 ```
 
+Just restart the API:
+```bash
+docker compose --env-file .env restart api
+```
+
 ## Local Development Setup
 
 ### 1. Create Virtual Environment
 ```bash
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate 
 ```
 
 ### 2. Install Dependencies
@@ -75,21 +80,15 @@ The API will be available at http://localhost:8000
 
 ## Running Tests
 
-### With Virtual Environment
+### Run Tests
 ```bash
 source venv/bin/activate
-pytest tests/ -v
+pytest -q
 ```
 
 ### Run Tests with Coverage
 ```bash
 pytest tests/ --cov=app --cov-report=term-missing
-```
-
-### Using Test Scripts
-```bash
-./scripts/test.sh              # Run tests
-./scripts/test-coverage.sh     # Run tests with coverage report
 ```
 
 ## Project Structure
@@ -123,16 +122,27 @@ cow/
 
 ## API Endpoints
 
-### Health Check
-- `GET /` - Root endpoint
-- `GET /health` - Health check endpoint
+### Cows
+- `POST /api/v1/cows/` - Create a new cow
+- `GET /api/v1/cows/` - List all cows
+- `GET /api/v1/cows/{cow_id}` - Get a specific cow
+- `DELETE /api/v1/cows/{cow_id}` - Delete a cow
 
-### Items CRUD
-- `POST /api/v1/items/` - Create a new item
-- `GET /api/v1/items/` - List all items (with pagination)
-- `GET /api/v1/items/{item_id}` - Get a specific item
-- `PUT /api/v1/items/{item_id}` - Update an item
-- `DELETE /api/v1/items/{item_id}` - Delete an item
+### Measurements
+- `POST /api/v1/measurements/` - Create a new measurement
+- `GET /api/v1/measurements/` - List all measurements
+- `GET /api/v1/measurements/{measurement_id}` - Get a specific measurement
+- `DELETE /api/v1/measurements/{measurement_id}` - Delete a measurement
+
+### Sensors
+- `POST /api/v1/sensors/` - Create a new sensor
+- `GET /api/v1/sensors/` - List all sensors
+- `GET /api/v1/sensors/{sensor_id}` - Get a specific sensor
+- `DELETE /api/v1/sensors/{sensor_id}` - Delete a sensor
+
+### Reports
+- `GET /api/v1/reports/weights` - Get cow weights report
+- `GET /api/v1/reports/milk` - Get milk production report
 
 ## API Documentation
 
@@ -184,12 +194,6 @@ docker compose --env-file .env up -d --build
 
 3. Wait for the database to become healthy (simple `ps` check):
 
-```bash
-docker compose --env-file .env ps
-# or a loop that waits for Postgres readiness (inside the db container):
-until docker compose --env-file .env exec db pg_isready -U "$POSTGRES_USER"; do sleep 1; done
-```
-
 4. Apply migrations (run inside the `api` container so it uses the same environment):
 
 ```bash
@@ -203,13 +207,8 @@ alembic upgrade head
 5. (Optional) Re-load initial data using the loader utilities:
 
 ```bash
-# Dry-run first
-python utils/load_data.py --data-dir data/input --dry-run
-# Then load for real
 python utils/load_data.py --data-dir data/input
 ```
-
-If your setup runs Alembic automatically on API startup (some deployments do), step 4 may not be necessary.
 
 
 ## Development
@@ -242,42 +241,6 @@ pip install -e ".[dev]"
 - **Docker** & **Docker Compose** - Containerization
 - **Pytest** 8.3+ - Testing framework
 
-## Troubleshooting
-
-### Docker Issues
-
-**Port already in use:**
-```bash
-# Change ports in docker-compose.yml or stop the conflicting service
-docker-compose down
-```
-
-**Database connection issues:**
-```bash
-# Check if database is healthy
-docker-compose ps
-# View database logs
-docker-compose logs db
-```
-
-### Local Development Issues
-
-**Import errors:**
-```bash
-# Make sure virtual environment is activated and package is installed
-source venv/bin/activate
-pip install -e ".[dev]"
-```
-
-**Database migration errors:**
-```bash
-# Check your DATABASE_URL in .env
-# Ensure PostgreSQL is running
-# Try to reset migrations (WARNING: this will delete data)
-alembic downgrade base
-alembic upgrade head
-```
-
 ## Utils
 
 Small utility scripts live under `utils/`. Below are the primary helpers used during development and data loading.
@@ -290,28 +253,18 @@ Small utility scripts live under `utils/`. Below are the primary helpers used du
 CLI usage:
 
 ```bash
-# Scan current directory recursively
-python utils/read_sample_data.py
-
-# Scan a specific directory
 python utils/read_sample_data.py data/input
 ```
 
-Programmatic:
+### `load_data.py` — bulk ASYNC loader (parquet → API)
 
-```python
-from utils.read_sample_data import read_parquet_files
-dfs = read_parquet_files("data/input")
-```
-
-### `load_data.py` — bulk loader (parquet → API)
-
-- Purpose: Read `cows.parquet`, `sensors.parquet`, and `measurements.parquet` and POST them to the running API.
+- Purpose: Read `cows.parquet`, `sensors.parquet`, and `measurements.parquet` and POST them to the running API asynchronously.
 - Location: `utils/load_data.py`
 
 Important notes:
 - The script POSTs cows and sensors by explicit IDs, and posts measurements to the measurements collection endpoint.
 - Use `--dry-run` first to verify what will be sent (no network requests).
+- The script takes around ~20 minutes to load 500K measurements.
 
 CLI usage:
 
@@ -326,13 +279,6 @@ python utils/load_data.py --data-dir data/input
 Options:
 - `--data-dir` (default: `data/input`) — directory with `cows.parquet`, `sensors.parquet`, `measurements.parquet`.
 - `--dry-run` — print HTTP payloads without sending requests.
-
-Example: do a dry-run, then load data for real:
-
-```bash
-python utils/load_data.py --data-dir data/input --dry-run
-python utils/load_data.py --data-dir data/input
-```
 
 ### `clean_data.sh` — destructive DB wipe (SQL)
 
@@ -362,24 +308,3 @@ Behavior details:
 - If `psql` is installed locally the script pipes SQL into it.
 - If `psql` is missing the script will attempt to exec into the running `db` container (`docker exec` / `docker-compose exec`) and run `psql` there.
 
-Suggested workflow for reloading data:
-
-1. Stop API hot-reload or avoid editing watched files while loading.
-2. Confirm DB state and run a dry-run:
-
-```bash
-./utils/clean_data.sh --dry-run
-```
-
-3. If satisfied, run the destructive step (or run against a throwaway DB):
-
-```bash
-./utils/clean_data.sh
-```
-
-4. Load the parquet data (dry-run first if desired):
-
-```bash
-python utils/load_data.py --data-dir data/input --dry-run
-python utils/load_data.py --data-dir data/input
-```
