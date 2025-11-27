@@ -1,18 +1,36 @@
+# from sqlalchemy import create_engine
+# from sqlalchemy.orm import declarative_base, sessionmaker
+
+# engine = create_engine(settings.DATABASE_URL, pool_size=20, max_overflow=40)
+# SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Base = declarative_base()
+# def get_db():
+#     """Dependency to get database session"""
+#     db = SessionLocal()
+#     try:
+#         yield db
+#     finally:
+#         db.close()
 from sqlalchemy import create_engine
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 from app.config import settings
 
-engine = create_engine(settings.DATABASE_URL, pool_size=20, max_overflow=40)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Async engine & session for runtime
+engine = create_async_engine(
+    settings.DATABASE_URL,
+    echo=False,
+    pool_size=30,
+    max_overflow=60,
+    pool_timeout=30,
+)
+AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
+# Declarative base (exported for Alembic autogenerate)
 Base = declarative_base()
 
 
-def get_db():
-    """Dependency to get database session"""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+async def get_db():
+    async with AsyncSessionLocal() as session:
+        yield session

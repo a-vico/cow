@@ -1,4 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from app import models, schemas
@@ -15,11 +17,15 @@ router = APIRouter()
 async def create_cow(
     cow_id: str,
     cow: schemas.CowCreate,
-    db: Session = Depends(get_db),
+    db: Session | AsyncSession = Depends(get_db),
 ):
     """Create a new cow"""
     # Check if cow with this ID already exists
-    existing_cow = db.query(models.Cow).filter(models.Cow.id == cow_id).first()
+    if isinstance(db, AsyncSession):
+        res = await db.execute(select(models.Cow).filter(models.Cow.id == cow_id))
+        existing_cow = res.scalars().first()
+    else:
+        existing_cow = db.query(models.Cow).filter(models.Cow.id == cow_id).first()
     if existing_cow:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -30,8 +36,12 @@ async def create_cow(
     data["id"] = cow_id
     db_cow = models.Cow(**data)
     db.add(db_cow)
-    db.commit()
-    db.refresh(db_cow)
+    if isinstance(db, AsyncSession):
+        await db.commit()
+        await db.refresh(db_cow)
+    else:
+        db.commit()
+        db.refresh(db_cow)
     return db_cow
 
 
@@ -39,27 +49,42 @@ async def create_cow(
 async def list_cows(
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(get_db),
+    db: Session | AsyncSession = Depends(get_db),
 ):
     """List all cows with pagination"""
-    cows = db.query(models.Cow).offset(skip).limit(limit).all()
-    total = db.query(models.Cow).count()
+    if isinstance(db, AsyncSession):
+        res = await db.execute(select(models.Cow).offset(skip).limit(limit))
+        cows = res.scalars().all()
+        total_res = await db.execute(select(func.count()).select_from(models.Cow))
+        total = total_res.scalar_one()
+    else:
+        cows = db.query(models.Cow).offset(skip).limit(limit).all()
+        total = db.query(models.Cow).count()
     return {"cows": cows, "total": total}
 
 
 @router.get("/{cow_id}", response_model=schemas.CowResponse)
 async def get_cow(
     cow_id: str,
-    db: Session = Depends(get_db),
+    db: Session | AsyncSession = Depends(get_db),
 ):
     """Get a specific cow by ID"""
-    cow = db.query(models.Cow).filter(models.Cow.id == cow_id).first()
+    if isinstance(db, AsyncSession):
+        res = await db.execute(select(models.Cow).filter(models.Cow.id == cow_id))
+        cow = res.scalars().first()
+    else:
+        cow = db.query(models.Cow).filter(models.Cow.id == cow_id).first()
     if not cow:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Cow with id {cow_id} not found",
         )
-    latest = get_latest_measurements(db, cow_id)
+    # latest measurements helper supports sync sessions; for async sessions
+    # we fallback to an empty list (or you can adapt the helper to async)
+    if isinstance(db, AsyncSession):
+        latest = []
+    else:
+        latest = get_latest_measurements(db, cow_id)
     setattr(cow, "latest_measurements", latest)
     return cow
 

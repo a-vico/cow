@@ -1,4 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from app import models, schemas
@@ -15,13 +17,19 @@ router = APIRouter()
 async def create_sensor(
     sensor_id: str,
     sensor: schemas.SensorCreate,
-    db: Session = Depends(get_db),
+    db: Session | AsyncSession = Depends(get_db),
 ):
     """Create a new sensor"""
     # Check if sensor with this ID already exists
-    existing_sensor = (
-        db.query(models.Sensor).filter(models.Sensor.id == sensor_id).first()
-    )
+    if isinstance(db, AsyncSession):
+        res = await db.execute(
+            select(models.Sensor).filter(models.Sensor.id == sensor_id)
+        )
+        existing_sensor = res.scalars().first()
+    else:
+        existing_sensor = (
+            db.query(models.Sensor).filter(models.Sensor.id == sensor_id).first()
+        )
     if existing_sensor:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -32,8 +40,12 @@ async def create_sensor(
     data["id"] = sensor_id
     db_sensor = models.Sensor(**data)
     db.add(db_sensor)
-    db.commit()
-    db.refresh(db_sensor)
+    if isinstance(db, AsyncSession):
+        await db.commit()
+        await db.refresh(db_sensor)
+    else:
+        db.commit()
+        db.refresh(db_sensor)
     return db_sensor
 
 
@@ -41,21 +53,33 @@ async def create_sensor(
 async def list_sensors(
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(get_db),
+    db: Session | AsyncSession = Depends(get_db),
 ):
     """List all sensors with pagination"""
-    sensors = db.query(models.Sensor).offset(skip).limit(limit).all()
-    total = db.query(models.Sensor).count()
+    if isinstance(db, AsyncSession):
+        res = await db.execute(select(models.Sensor).offset(skip).limit(limit))
+        sensors = res.scalars().all()
+        total_res = await db.execute(select(func.count()).select_from(models.Sensor))
+        total = total_res.scalar_one()
+    else:
+        sensors = db.query(models.Sensor).offset(skip).limit(limit).all()
+        total = db.query(models.Sensor).count()
     return {"sensors": sensors, "total": total}
 
 
 @router.get("/{sensor_id}", response_model=schemas.SensorResponse)
 async def get_sensor(
     sensor_id: str,
-    db: Session = Depends(get_db),
+    db: Session | AsyncSession = Depends(get_db),
 ):
     """Get a specific sensor by ID"""
-    sensor = db.query(models.Sensor).filter(models.Sensor.id == sensor_id).first()
+    if isinstance(db, AsyncSession):
+        res = await db.execute(
+            select(models.Sensor).filter(models.Sensor.id == sensor_id)
+        )
+        sensor = res.scalars().first()
+    else:
+        sensor = db.query(models.Sensor).filter(models.Sensor.id == sensor_id).first()
     if not sensor:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -67,10 +91,18 @@ async def get_sensor(
 @router.delete("/{sensor_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_sensor(
     sensor_id: str,
-    db: Session = Depends(get_db),
+    db: Session | AsyncSession = Depends(get_db),
 ):
     """Delete a sensor"""
-    db_sensor = db.query(models.Sensor).filter(models.Sensor.id == sensor_id).first()
+    if isinstance(db, AsyncSession):
+        res = await db.execute(
+            select(models.Sensor).filter(models.Sensor.id == sensor_id)
+        )
+        db_sensor = res.scalars().first()
+    else:
+        db_sensor = (
+            db.query(models.Sensor).filter(models.Sensor.id == sensor_id).first()
+        )
     if not db_sensor:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from app import models, schemas
@@ -16,15 +18,22 @@ router = APIRouter()
 )
 async def create_measurement(
     measurement: schemas.MeasurementCreate,
-    db: Session = Depends(get_db),
+    db: Session | AsyncSession = Depends(get_db),
 ):
     """Create a new measurement"""
     # Validate that sensor exists
-    sensor = (
-        db.query(models.Sensor)
-        .filter(models.Sensor.id == measurement.sensor_id)
-        .first()
-    )
+    # Support both sync and async DB sessions
+    if isinstance(db, AsyncSession):
+        res = await db.execute(
+            select(models.Sensor).filter(models.Sensor.id == measurement.sensor_id)
+        )
+        sensor = res.scalars().first()
+    else:
+        sensor = (
+            db.query(models.Sensor)
+            .filter(models.Sensor.id == measurement.sensor_id)
+            .first()
+        )
     if not sensor:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -32,7 +41,13 @@ async def create_measurement(
         )
 
     # Validate that cow exists
-    cow = db.query(models.Cow).filter(models.Cow.id == measurement.cow_id).first()
+    if isinstance(db, AsyncSession):
+        res = await db.execute(
+            select(models.Cow).filter(models.Cow.id == measurement.cow_id)
+        )
+        cow = res.scalars().first()
+    else:
+        cow = db.query(models.Cow).filter(models.Cow.id == measurement.cow_id).first()
     if not cow:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -71,8 +86,13 @@ async def create_measurement(
 
     db_measurement = models.Measurement(**mdata)
     db.add(db_measurement)
-    db.commit()
-    db.refresh(db_measurement)
+    if isinstance(db, AsyncSession):
+        await db.commit()
+        await db.refresh(db_measurement)
+    else:
+        db.commit()
+        db.refresh(db_measurement)
+
     return db_measurement
 
 
@@ -82,32 +102,56 @@ async def list_measurements(
     limit: int = 100,
     cow_id: str = None,
     sensor_id: str = None,
-    db: Session = Depends(get_db),
+    db: Session | AsyncSession = Depends(get_db),
 ):
     """List all measurements with pagination and optional filters"""
-    query = db.query(models.Measurement)
+    if isinstance(db, AsyncSession):
+        stmt = select(models.Measurement)
+        if cow_id:
+            stmt = stmt.filter(models.Measurement.cow_id == cow_id)
+        if sensor_id:
+            stmt = stmt.filter(models.Measurement.sensor_id == sensor_id)
+        stmt = stmt.offset(skip).limit(limit)
+        res = await db.execute(stmt)
+        measurements = res.scalars().all()
 
-    if cow_id:
-        query = query.filter(models.Measurement.cow_id == cow_id)
-    if sensor_id:
-        query = query.filter(models.Measurement.sensor_id == sensor_id)
+        # total count
+        count_stmt = select(func.count()).select_from(models.Measurement)
+        if cow_id:
+            count_stmt = count_stmt.filter(models.Measurement.cow_id == cow_id)
+        if sensor_id:
+            count_stmt = count_stmt.filter(models.Measurement.sensor_id == sensor_id)
+        total_res = await db.execute(count_stmt)
+        total = total_res.scalar_one()
+    else:
+        query = db.query(models.Measurement)
+        if cow_id:
+            query = query.filter(models.Measurement.cow_id == cow_id)
+        if sensor_id:
+            query = query.filter(models.Measurement.sensor_id == sensor_id)
+        measurements = query.offset(skip).limit(limit).all()
+        total = query.count()
 
-    measurements = query.offset(skip).limit(limit).all()
-    total = query.count()
     return {"measurements": measurements, "total": total}
 
 
 @router.get("/{measurement_id}", response_model=schemas.MeasurementResponse)
 async def get_measurement(
     measurement_id: int,
-    db: Session = Depends(get_db),
+    db: Session | AsyncSession = Depends(get_db),
 ):
     """Get a specific measurement by ID"""
-    measurement = (
-        db.query(models.Measurement)
-        .filter(models.Measurement.id == measurement_id)
-        .first()
-    )
+    if isinstance(db, AsyncSession):
+        res = await db.execute(
+            select(models.Measurement).filter(models.Measurement.id == measurement_id)
+        )
+        measurement = res.scalars().first()
+    else:
+        measurement = (
+            db.query(models.Measurement)
+            .filter(models.Measurement.id == measurement_id)
+            .first()
+        )
     if not measurement:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -119,14 +163,20 @@ async def get_measurement(
 @router.delete("/{measurement_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_measurement(
     measurement_id: int,
-    db: Session = Depends(get_db),
+    db: Session | AsyncSession = Depends(get_db),
 ):
     """Delete a measurement"""
-    db_measurement = (
-        db.query(models.Measurement)
-        .filter(models.Measurement.id == measurement_id)
-        .first()
-    )
+    if isinstance(db, AsyncSession):
+        res = await db.execute(
+            select(models.Measurement).filter(models.Measurement.id == measurement_id)
+        )
+        db_measurement = res.scalars().first()
+    else:
+        db_measurement = (
+            db.query(models.Measurement)
+            .filter(models.Measurement.id == measurement_id)
+            .first()
+        )
     if not db_measurement:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -134,5 +184,8 @@ async def delete_measurement(
         )
 
     db.delete(db_measurement)
-    db.commit()
+    if isinstance(db, AsyncSession):
+        await db.commit()
+    else:
+        db.commit()
     return None

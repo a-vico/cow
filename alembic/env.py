@@ -2,8 +2,10 @@ import os
 import sys
 from logging.config import fileConfig
 
+from sqlalchemy import pool
+from sqlalchemy.ext.asyncio import create_async_engine
+
 from alembic import context
-from sqlalchemy import engine_from_config, pool
 
 # Add the parent directory to the path so we can import our app
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -54,23 +56,31 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode.
+    """Run migrations in 'online' mode using an async engine.
 
-    In this scenario we need to create an Engine
-    and associate a connection with the context.
-
+    This creates an async engine from the URL in the config and runs
+    migrations using an async connection so `postgresql+asyncpg` URLs
+    work without a sync DBAPI like psycopg2.
     """
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
+
+    connectable = create_async_engine(
+        config.get_main_option("sqlalchemy.url"), poolclass=pool.NullPool
     )
 
-    with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+    async def run():
+        async with connectable.connect() as connection:
 
-        with context.begin_transaction():
-            context.run_migrations()
+            def do_run_migrations(conn):
+                context.configure(connection=conn, target_metadata=target_metadata)
+
+                with context.begin_transaction():
+                    context.run_migrations()
+
+            await connection.run_sync(do_run_migrations)
+
+    import asyncio
+
+    asyncio.run(run())
 
 
 if context.is_offline_mode():

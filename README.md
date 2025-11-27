@@ -58,7 +58,7 @@ Make sure PostgreSQL is running locally and update `.env` file:
 ```bash
 cp .env.example .env
 # Edit .env with your local database credentials
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/cow_db
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/cow_db
 ```
 
 ### 4. Run Database Migrations
@@ -144,7 +144,7 @@ Once the application is running, visit:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:postgres@db:5432/cow_db` |
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql+asyncpg://postgres:postgres@db:5432/cow_db` |
 | `PROJECT_NAME` | API project name | `Cow API` |
 | `VERSION` | API version | `0.1.0` |
 
@@ -164,6 +164,53 @@ alembic upgrade head
 ```bash
 alembic downgrade -1
 ```
+
+## Recreate Database (Destroy & Recreate)
+
+Warning: these steps will permanently delete the database data stored in the Docker volume. Only run on development or throwaway environments unless you have backups.
+
+1. Stop containers and remove volumes (this destroys DB data):
+
+```bash
+# Stop services and remove volumes (DB data removed)
+docker compose --env-file .env down -v
+```
+
+2. Rebuild and start services (this will recreate the DB container and empty database):
+
+```bash
+docker compose --env-file .env up -d --build
+```
+
+3. Wait for the database to become healthy (simple `ps` check):
+
+```bash
+docker compose --env-file .env ps
+# or a loop that waits for Postgres readiness (inside the db container):
+until docker compose --env-file .env exec db pg_isready -U "$POSTGRES_USER"; do sleep 1; done
+```
+
+4. Apply migrations (run inside the `api` container so it uses the same environment):
+
+```bash
+# Run Alembic from the api container
+docker compose --env-file .env exec api alembic upgrade head
+
+# Or run locally if your local env points to the recreated DB
+alembic upgrade head
+```
+
+5. (Optional) Re-load initial data using the loader utilities:
+
+```bash
+# Dry-run first
+python utils/load_data.py --data-dir data/input --dry-run
+# Then load for real
+python utils/load_data.py --data-dir data/input
+```
+
+If your setup runs Alembic automatically on API startup (some deployments do), step 4 may not be necessary.
+
 
 ## Development
 
@@ -308,7 +355,7 @@ CLI usage:
 ```
 
 Options:
-- `--db-url` — Postgres connection string (default: `postgresql://postgres:postgres@localhost:5433/cow_db`).
+- `--db-url` — Postgres connection string (default: `postgresql+asyncpg://postgres:postgres@localhost:5433/cow_db`).
 - `--dry-run` — print the SQL and exit.
 
 Behavior details:

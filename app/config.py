@@ -32,7 +32,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5433/cow_db"
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5433/cow_db"
     PROJECT_NAME: str = "Cow Monitoring API"
     VERSION: str = "0.1.0"
 
